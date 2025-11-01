@@ -1,0 +1,7 @@
+requests
+pandas
+streamlit
+mplfinance
+pytz
+PyJWT
+python-dotenv

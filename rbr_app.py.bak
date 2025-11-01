@@ -1,0 +1,61 @@
+import streamlit as st
+import pandas as pd
+import mplfinance as mpf
+
+import os
+from rbr_logic import run_analysis, analyze_security
+
+st.set_page_config(page_title="RBR Demand Zones", layout="wide")
+
+st.title("📈 Rally-Base-Rally Demand Zone Finder")
+
+csv_default = os.path.join(os.path.dirname(__file__), "api-scrip-master.csv")
+
+csv_path = st.text_input("Path to api-scrip-master.csv", value=csv_default)
+
+if st.button("Run Analysis"):
+    with st.spinner("Fetching + Computing (this may take a while)..."):
+        try:
+            final = run_analysis(csv_path=csv_path)
+        except Exception as e:
+            st.error(f"Error during analysis: {e}")
+            final = pd.DataFrame()
+
+    if final is None or final.empty:
+        st.warning("No results produced.")
+    else:
+        st.success("✅ Complete!")
+        st.subheader("📋 Aggregated Results")
+        st.dataframe(final)
+
+        # allow user to pick a security to inspect
+        security_list = sorted(final["security_id"].unique().tolist())
+        sel = st.selectbox("Select security to inspect", options=security_list)
+        if sel:
+            df, retests = analyze_security(sel)
+            if df is None or df.empty:
+                st.warning("No candle data available for selected security.")
+            else:
+                st.subheader(f"📊 Candlestick Chart for {sel}")
+                df_chart = df.copy()
+                df_chart.set_index("date", inplace=True)
+
+                hlines = []
+                for _, row in (retests or pd.DataFrame()).iterrows():
+                    hlines.append((row.get("demand_zone_low"), row.get("demand_zone_high")))
+
+                fig, ax = mpf.plot(
+                    df_chart,
+                    type="candle",
+                    returnfig=True,
+                    hlines=dict(
+                        hlines=[x for z in hlines for x in z] if hlines else [],
+                        colors="green",
+                        linewidths=1.0,
+                        alpha=0.5
+                    )
+                )
+
+                st.pyplot(fig)
+else:
+    st.info("Click **Run Analysis** to start")
