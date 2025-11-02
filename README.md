@@ -1,3 +1,30 @@
+# stocks (rbr)
+
+This repository contains the RBR/DBD analysis tools and a Streamlit app.
+
+Quick steps to prepare and push to GitHub (Windows PowerShell):
+
+1. Ensure you have Git installed and in PATH: https://git-scm.com/download/win
+2. (Optional) Install GitHub CLI `gh` to create a repo from terminal: https://cli.github.com/
+3. Initialize, commit and push:
+
+```powershell
+git init
+git add .
+git commit -m "Initial commit"
+# create remote via GitHub web or with `gh repo create` and then:
+git branch -M main
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git push -u origin main
+```
+
+4. For Streamlit Community Cloud:
+   - Push your repo to GitHub.
+   - On https://share.streamlit.io, click "New app", select this repo, branch `main`, and the file to run (e.g., `rbr_app.py`).
+   - Add your secrets (DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID) on Streamlit's Secrets page or set environment variables via the UI.
+
+Security notes:
+- Never commit `.env` with real tokens. Use `.env.example` to show required keys.
 # Dhan API Stock Analysis
 
 ## Setup
