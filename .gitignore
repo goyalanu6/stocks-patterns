@@ -33,7 +33,7 @@ __pycache__/
 
 # Environment configs
 .env
-config.py
+# config.py
 
 # IDE
 .vscode/
