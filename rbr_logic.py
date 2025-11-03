@@ -328,7 +328,7 @@ def run_analysis(
     csv_path: Optional[str] = None,
     out_csv: Optional[str] = None,
     sleep_between: float = 0.2,
-    max_securities: Optional[int] = 50,
+    max_securities: Optional[int] = None,
 ) -> pd.DataFrame:
     """Read CSV, filter required rows, iterate over security IDs and return aggregated DataFrame.
 
@@ -336,7 +336,7 @@ def run_analysis(
       csv_path: optional path to api-scrip-master.csv (defaults to script dir)
       out_csv: optional output path to save aggregated results
       sleep_between: pause between API calls
-      max_securities: optional int to limit processed securities (for quick runs)
+    max_securities: optional int to limit processed securities
     """
     if csv_path is None:
         csv_path = os.path.join(os.path.dirname(__file__), "api-scrip-master.csv")
@@ -399,7 +399,9 @@ def run_analysis(
             row_meta = filtered[filtered["SEM_SMST_SECURITY_ID"] == sid]
             if not row_meta.empty:
                 first = row_meta.iloc[0]
+                # Preserve existing symbol_name field if present, and also add SM_SYMBOL_NAME
                 out["symbol_name"] = first.get("SEM_SMST_SECURITY_NAME", None) if "SEM_SMST_SECURITY_NAME" in first.index else None
+                out["SM_SYMBOL_NAME"] = first.get("SM_SYMBOL_NAME", None) if "SM_SYMBOL_NAME" in first.index else None
             all_results.append(out)
 
         time.sleep(sleep_between)
