@@ -401,7 +401,7 @@ def run_analysis(
                 first = row_meta.iloc[0]
                 # Preserve existing symbol_name field if present, and also add SM_SYMBOL_NAME
                 out["symbol_name"] = first.get("SEM_SMST_SECURITY_NAME", None) if "SEM_SMST_SECURITY_NAME" in first.index else None
-                out["SM_SYMBOL_NAME"] = first.get("SM_SYMBOL_NAME", None) if "SM_SYMBOL_NAME" in first.index else None
+                # out["SM_SYMBOL_NAME"] = first.get("SM_SYMBOL_NAME", None) if "SM_SYMBOL_NAME" in first.index else None
             all_results.append(out)
 
         time.sleep(sleep_between)
