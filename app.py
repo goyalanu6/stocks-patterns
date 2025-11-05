@@ -74,7 +74,8 @@ else:
     sb_filtered = scrips[
         (scrips.get("SEM_EXM_EXCH_ID") == "NSE") &
         (scrips.get("SEM_INSTRUMENT_NAME") == "EQUITY") &
-        (scrips.get("SEM_SEGMENT") == "E")
+        (scrips.get("SEM_SEGMENT") == "E") &
+        (scrips.get("SEM_EXCH_INSTRUMENT_TYPE") == "ES")
     ]
     sb_labels = sb_filtered[symbol_col].astype(str).tolist()
     sb_ids = sb_filtered["SEM_SMST_SECURITY_ID"].astype(str).tolist()
