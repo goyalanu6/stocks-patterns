@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import os
-import time
-from rbr_logic import run_analysis, analyze_security
-from dbd_logic import analyze_security_dbd
+# import time
+# from rbr_logic import run_analysis, analyze_security
+# from dbd_logic import analyze_security_dbd
 from patterns_logic import analyze_security_patterns, find_retests_rbr, find_retests_dbd
 
-st.set_page_config(page_title="RBR/DBD Patterns Analyzer", layout="wide")
+st.set_page_config(page_title="Supply & Demand Pattern Analyzer", layout="wide")
 
 st.title("📈 Stocks Patterns Analyzer")
 st.markdown(
@@ -39,17 +39,28 @@ st.sidebar.title("Controls")
 st.sidebar.markdown("Search & analyze a single stock symbol.")
 st.sidebar.caption(f"Scrip master: {os.path.basename(csv_path)}")
 
-mode = st.sidebar.selectbox("Mode", ["RBR", "DBD"], index=0)
+# Pattern mode selection
+mode = st.sidebar.selectbox("Mode", ["RBR", "DBD", "RBD", "DBR"], index=0, help="Choose pattern type to analyze")
 
 # --- Add user-adjustable thresholds ---
 st.sidebar.markdown("### Candle Thresholds")
 body_percent = st.sidebar.slider(
-    "Body % threshold", 10, 90, 65, 1,
-    help="Minimum candle body % for rally/drop candles."
+    "Minimum Body %", 10, 100, 65,
+    help="Minimum body percentage of the total candle length"
 )
 wick_percent = st.sidebar.slider(
-    "Wick % threshold", 10, 90, 35, 1,
-    help="Maximum wick % for rally/drop candles (or minimum for bases)."
+    "Maximum Wick %", 0, 100, 35,
+    help="Maximum wick (upper + lower) percentage of the total candle length"
+)
+
+# Max Base Candles
+max_bases = st.sidebar.slider(
+    "Maximum Base Candles",
+    min_value=1,
+    max_value=4,
+    value=4,
+    step=1,
+    help="Maximum number of base candles allowed between impulse candles"
 )
 
 # --- Symbol Search ---
@@ -97,17 +108,15 @@ with col_right:
                     wick_threshold = wick_percent / 100.0
 
                     if mode == "RBR":
-                        df, retests = analyze_security_patterns(
-                            sidebar_selected_id, "bullish",
-                            body_threshold=body_threshold,
-                            wick_threshold=wick_threshold
-                        )
+                        df, retests = analyze_security_patterns(sidebar_selected_id, "bullish", body_threshold, wick_threshold, max_bases)
+                    elif mode == "DBD":
+                        df, retests = analyze_security_patterns(sidebar_selected_id, "bearish", body_threshold, wick_threshold, max_bases)
+                    elif mode == "RBD":
+                        df, retests = analyze_security_patterns(sidebar_selected_id, "rbd", body_threshold, wick_threshold, max_bases)
+                    elif mode == "DBR":
+                        df, retests = analyze_security_patterns(sidebar_selected_id, "dbr", body_threshold, wick_threshold, max_bases)
                     else:
-                        df, retests = analyze_security_patterns(
-                            sidebar_selected_id, "bearish",
-                            body_threshold=body_threshold,
-                            wick_threshold=wick_threshold
-                        )
+                        df, retests = None, pd.DataFrame()
                 except Exception as e:
                     st.error(f"Error fetching data for {sidebar_selected_id}: {e}")
                     df, retests = None, pd.DataFrame()
