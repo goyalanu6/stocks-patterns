@@ -2,35 +2,25 @@ import pandas as pd
 from rbr_logic import fetch_for
 from typing import Optional, Dict, Any, Tuple
 
-def find_pattern(df: pd.DataFrame, direction: str = "bullish", max_bases: int = 4) -> pd.DataFrame:
+def find_pattern(
+    df: pd.DataFrame,
+    direction: str = "bullish",
+    max_bases: int = 4,
+    body_threshold: float = 0.65,
+    wick_threshold: float = 0.35
+) -> pd.DataFrame:
     """
-    Detect Rally-Base-Rally (RBR) or Drop-Base-Drop (DBD) patterns.
+    Detect Rally-Base-Rally (RBR) or Drop-Base-Drop (DBD) patterns with
+    dynamic body/wick thresholds.
 
-    Candle Rules
-    -------------
+    Candle Rules (default)
+    -----------------------
     RBR (bullish):
-        - First & second rally candles (green):
-            * body >= 65% of total candle
-            * (upper + lower wicks) <= 35% of total candle
-        - Base candles:
-            * body <= 35% of total candle
-            * (upper + lower wicks) >= 65% of total candle
+        - Rally candles: body >= 65% of total candle, (upper+lower wicks) <= 35%
+        - Base candles: body <= 35%, (upper+lower wicks) >= 65%
     DBD (bearish):
-        - First & second drop candles (red):
-            * body >= 65% of total candle
-            * (upper + lower wicks) <= 35% of total candle
-        - Base candles:
-            * body <= 35% of total candle
-            * (upper + lower wicks) >= 65% of total candle
-
-    Zone Definition
-    ----------------
-    - Bullish:
-        zone_high = highest body high among bases (max(open, close))
-        zone_low  = lowest low among bases
-    - Bearish:
-        zone_high = highest high among bases
-        zone_low  = lowest body low among bases (min(open, close))
+        - Drop candles: body >= 65%, wicks <= 35%
+        - Base candles: body <= 35%, wicks >= 65%
     """
 
     def candle_size(c):
@@ -61,11 +51,11 @@ def find_pattern(df: pd.DataFrame, direction: str = "bullish", max_bases: int = 
 
         # --- First impulse (rally/drop) candle ---
         if direction == "bullish":
-            if not is_bullish(c1) or body1 / size1 < 0.65 or wick1 / size1 > 0.35:
+            if not is_bullish(c1) or body1 / size1 < body_threshold or wick1 / size1 > wick_threshold:
                 i += 1
                 continue
         else:
-            if not is_bearish(c1) or body1 / size1 < 0.65 or wick1 / size1 > 0.35:
+            if not is_bearish(c1) or body1 / size1 < body_threshold or wick1 / size1 > wick_threshold:
                 i += 1
                 continue
 
@@ -78,7 +68,7 @@ def find_pattern(df: pd.DataFrame, direction: str = "bullish", max_bases: int = 
             body = candle_body(c)
             wick = wick_sum(c)
 
-            if body / size <= 0.35 and wick / size >= 0.65:
+            if body / size <= wick_threshold and wick / size >= body_threshold:
                 bases.append(c)
                 j += 1
             else:
@@ -95,11 +85,11 @@ def find_pattern(df: pd.DataFrame, direction: str = "bullish", max_bases: int = 
         wick2 = wick_sum(c2)
 
         if direction == "bullish":
-            if not is_bullish(c2) or body2 / size2 < 0.65 or wick2 / size2 > 0.35:
+            if not is_bullish(c2) or body2 / size2 < body_threshold or wick2 / size2 > wick_threshold:
                 i += 1
                 continue
         else:
-            if not is_bearish(c2) or body2 / size2 < 0.65 or wick2 / size2 > 0.35:
+            if not is_bearish(c2) or body2 / size2 < body_threshold or wick2 / size2 > wick_threshold:
                 i += 1
                 continue
 
@@ -128,50 +118,47 @@ def find_pattern(df: pd.DataFrame, direction: str = "bullish", max_bases: int = 
 
     return pd.DataFrame(zones)
 
-def analyze_security_patterns(security_id: str, direction: str) -> Tuple[Optional[pd.DataFrame], pd.DataFrame]:
-    """Fetch and analyze a single security for DBD patterns.
 
-    Returns (df, retests_df) where df is the candle DataFrame and retests_df
-    contains the DBD zones + retest/buy information.
-    """
+def analyze_security_patterns(
+    security_id: str,
+    direction: str,
+    body_threshold: float = 0.65,
+    wick_threshold: float = 0.35
+) -> Tuple[Optional[pd.DataFrame], pd.DataFrame]:
+    """Fetch and analyze security for RBR or DBD patterns using dynamic thresholds."""
     try:
         df = fetch_for(security_id)
-        # handle empty DataFrame
         if df is None or df.empty:
             print(f"No data returned for {security_id}")
             return None, pd.DataFrame()
 
-        zones = find_pattern(df, direction)
+        zones = find_pattern(
+            df,
+            direction,
+            body_threshold=body_threshold,
+            wick_threshold=wick_threshold
+        )
+
         if zones is None or zones.empty:
             return df, pd.DataFrame()
 
         if direction == "bullish":
             retests = find_retests_rbr(df, zones)
-        if direction == "bearish":
+        elif direction == "bearish":
             retests = find_retests_dbd(df, zones)
+        else:
+            retests = pd.DataFrame()
+
         return df, retests
-    except RuntimeError as e:
-        # handle network/API errors explicitly
-        print(f"❌ Error fetching data for {security_id}: {e}")
-        return None, pd.DataFrame()
+
     except Exception as e:
-        print(f"Error fetching data for {security_id}: {e}")
-        return None, pd.DataFrame() # always return a tuple
+        print(f"Error analyzing {security_id}: {e}")
+        return None, pd.DataFrame()
+
+
+# --- Retest functions remain unchanged ---
 
 def find_retests_rbr(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
-    """
-    Retest scanning after Rally-2 for demand zone validation.
-
-    Rules:
-      ✅ Buy when any future candle.low touches demand zone 
-         (dz_low <= low <= dz_high)
-      ❌ Invalidate when any future candle.low breaks below dz_low
-      🕒 Continue scanning until an invalidation occurs 
-         (even if a buy already happened)
-
-    Returns: zones DataFrame with:
-      'buy_signal', 'buy_price', 'retest_date', 'invalidated'
-    """
     if zones is None or len(zones) == 0:
         return pd.DataFrame(columns=[
             *(zones.columns if zones is not None else []),
@@ -192,21 +179,17 @@ def find_retests_rbr(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
         buy_price = None
         retest_date = None
 
-        # ✅ scan all candles after Rally-2
         for idx in range(rally2_idx + 1, n):
             c = df.iloc[idx]
             low = float(c.low)
 
-            # ✅ Buy condition — only record first occurrence
             if not buy_signal and (dz_low - tolerance) <= low <= (dz_high + tolerance):
                 buy_signal = True
                 buy_price = low
                 retest_date = c.date
 
-            # ❌ Invalidation — always check, even after buy
             if low < (dz_low - tolerance):
                 invalidated = True
-                # we can break now — once broken, zone is invalid
                 break
 
         out = zone.to_dict()
@@ -221,16 +204,8 @@ def find_retests_rbr(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
     df_out = pd.DataFrame(results)
     return df_out.drop(columns=["zone_height", "continuation_idx"], errors="ignore")
 
-def find_retests_dbd(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
-    """
-    Retest scanning after Drop-2 for supply zone validation (bearish pattern).
 
-    Rules:
-      ✅ Sell when any future candle.high touches the supply zone 
-         (sz_low <= high <= sz_high)
-      ❌ Invalidate when any future candle.high breaks above sz_high
-      🕒 Continue scanning even after a sell to detect invalidation.
-    """
+def find_retests_dbd(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
     if zones is None or len(zones) == 0:
         return pd.DataFrame(columns=[
             *(zones.columns if zones is not None else []),
@@ -250,18 +225,15 @@ def find_retests_dbd(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
         sell_price = None
         retest_date = None
 
-        # ✅ Scan all candles after Drop-2
         for idx in range(drop2_idx + 1, n):
             c = df.iloc[idx]
             high = float(c.high)
 
-            # ✅ Retest (sell) condition — record once, but don’t break
             if not sell_signal and sz_low <= high <= sz_high:
                 sell_signal = True
                 sell_price = high
                 retest_date = c.date
 
-            # ❌ Invalidation condition — always check, even after sell
             if high > sz_high:
                 invalidated = True
                 break
@@ -273,7 +245,6 @@ def find_retests_dbd(df: pd.DataFrame, zones: pd.DataFrame) -> pd.DataFrame:
             "retest_date": pd.to_datetime(retest_date) if retest_date else None,
             "invalidated": invalidated
         })
-
         results.append(out)
 
     df_out = pd.DataFrame(results)
